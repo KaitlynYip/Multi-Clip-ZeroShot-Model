@@ -1,0 +1,84 @@
+# PASCAL VOC 2012
+# download the dataset
+import kagglehub
+
+# Download latest version
+path = kagglehub.dataset_download("gopalbhattrai/pascal-voc-2012-dataset")
+
+print("Path to dataset files:",path)
+
+
+
+#change dataset into csv file
+import os
+import xml.etree.ElementTree as ET
+from tqdm.auto import tqdm
+import pandas as pd
+
+# Correct paths for the train+val part
+IMAGE_DIR    = "/content/sample_data/kaggle/input/pascal-voc-2012-dataset/VOC2012_train_val/VOC2012_train_val/JPEGImages"
+ANNO_DIR     = "/content/sample_data/kaggle/input/pascal-voc-2012-dataset/VOC2012_train_val/VOC2012_train_val/Annotations"
+
+xml_files = sorted([f for f in os.listdir(ANNO_DIR) if f.endswith('.xml')])
+
+data = []
+for xml_name in tqdm(xml_files, desc="Converting train+val to CSV"):
+    img_name = xml_name.replace(".xml", ".jpg")
+    img_path = os.path.join(IMAGE_DIR, img_name)
+    xml_path = os.path.join(ANNO_DIR, xml_name)
+
+    tree = ET.parse(xml_path)
+    labels = [obj.find("name").text.strip() for obj in tree.findall("object")]
+
+    data.append({
+        "image_path": img_path,
+        "labels": ",".join(labels),
+        "num_objects": len(labels)
+    })
+
+df = pd.DataFrame(data)
+csv_path = "/content/pascal voc 2012.csv"
+df.to_csv(csv_path, index=False)
+print("Saved →", csv_path)
+
+print(f"Done! {len(df)} images → {csv_path}")
+df.head(10)
+
+
+
+# 3. Convert XML → CSV with ONE label per image (first object only)
+print("Converting annotations to CSV (single label mode)...")
+xml_files = sorted([f for f in os.listdir(ANNO_DIR) if f.endswith('.xml')])
+
+data = []
+for xml_name in tqdm(xml_files, desc="Parsing XML"):
+    xml_path = os.path.join(ANNO_DIR, xml_name)
+    tree = ET.parse(xml_path)
+    root = tree.getroot()
+
+    img_name = xml_name.replace(".xml", ".jpg")
+    img_path = os.path.join(IMAGE_DIR, img_name)
+
+    # Get all object names
+    objects = [obj.find("name").text.strip() for obj in root.findall("object")]
+
+    # Take ONLY the first object as the label for this image
+    if objects:
+        single_label = objects[0]
+    else:
+        single_label = "background"  # very rare case
+
+    data.append({
+        "image_path": img_path,
+        "label": single_label,
+        "num_objects": len(objects)
+    })
+
+df = pd.DataFrame(data)
+csv_path = "/content/pascal_voc_2012_single_label.csv"
+df.to_csv(csv_path, index=False)
+print(f"Saved {len(df)} images → {csv_path}")
+
+# Show class distribution
+print("\nClass distribution (single label):")
+print(df['label'].value_counts())
